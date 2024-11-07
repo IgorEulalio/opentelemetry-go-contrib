@@ -14,6 +14,10 @@ go.work.sum
 
 examples/dice/instrumented/instrumented
 examples/dice/uninstrumented/uninstrumented
+
+# ignore all .tool-versions across the repository
+.tool-versions
+
 examples/namedtracer/namedtracer
 examples/otel-collector/otel-collector
 examples/opencensus/opencensus
