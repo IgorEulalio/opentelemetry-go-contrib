@@ -5,6 +5,7 @@ package eks
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -81,7 +82,7 @@ func TestEks(t *testing.T) {
 	detectorUtils.AssertExpectations(t)
 }
 
-// Tests EKS resource detector running in EKS environment.
+// Tests EKS resource detector running in EKS environment but without tags for the instance.
 func TestEksWithoutEC2Tags(t *testing.T) {
 	detectorUtils := new(MockDetectorUtils)
 
@@ -92,6 +93,34 @@ func TestEksWithoutEC2Tags(t *testing.T) {
 	detectorUtils.On("getConfigMap", authConfigmapNS, authConfigmapName).Return(map[string]string{"not": "nil"}, nil)
 	detectorUtils.On("getContainerID").Return("0123456789A", nil)
 	detectorUtils.On("getInstanceTags", instanceId()).Return(generateTagKey(false), nil)
+
+	// Expected resource object
+	eksResourceLabels := []attribute.KeyValue{
+		semconv.CloudProviderAWS,
+		semconv.CloudPlatformAWSEKS,
+		semconv.ContainerID("0123456789A"),
+	}
+	expectedResource := resource.NewWithAttributes(semconv.SchemaURL, eksResourceLabels...)
+
+	// Call EKS Resource detector to detect resources
+	eksResourceDetector := resourceDetector{utils: detectorUtils}
+	resourceObj, err := eksResourceDetector.Detect(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, expectedResource, resourceObj, "Resource object returned is incorrect")
+	detectorUtils.AssertExpectations(t)
+}
+
+// Tests EKS resource detector running in EKS environment but not available to get EC2 metadata information.
+func TestEksWithErrorOnGettingMetadata(t *testing.T) {
+	detectorUtils := new(MockDetectorUtils)
+
+	// Mock functions and set expectations
+	detectorUtils.On("fileExists", k8sTokenPath).Return(true)
+	detectorUtils.On("fileExists", k8sCertPath).Return(true)
+	detectorUtils.On("getInstanceId").Return("", errors.New("instance ID not found"))
+	detectorUtils.On("getConfigMap", authConfigmapNS, authConfigmapName).Return(map[string]string{"not": "nil"}, nil)
+	detectorUtils.On("getContainerID").Return("0123456789A", nil)
 
 	// Expected resource object
 	eksResourceLabels := []attribute.KeyValue{
